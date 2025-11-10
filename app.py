@@ -6,7 +6,7 @@ import os
 
 app = Flask(__name__)
 
-# Get Gemini API key from environment
+# Initialize Gemini client
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
 # Store latest audio response
@@ -14,7 +14,7 @@ latest_audio_response = None
 
 @app.route("/", methods=["GET"])
 def home():
-    return {"status": "Voice Assistant Backend is running!"}
+    return jsonify({"status": "Voice Assistant Backend is running!"})
 
 @app.route("/process-audio", methods=["POST"])
 def process_audio():
@@ -28,9 +28,10 @@ def process_audio():
         audio_response = asyncio.run(send_to_gemini_live(audio_data))
         latest_audio_response = audio_response
         
-        return {"status": "success"}, 200
+        return jsonify({"status": "success"}), 200
     except Exception as e:
-        return {"error": str(e)}, 500
+        print(f"Error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/get-audio-response", methods=["GET"])
 def get_audio_response():
@@ -43,7 +44,7 @@ def get_audio_response():
         
         return send_file(audio_stream, mimetype="audio/pcm")
     else:
-        return {"status": "no_audio"}, 404
+        return jsonify({"status": "no_audio"}), 404
 
 async def send_to_gemini_live(audio_data):
     model = "gemini-2.5-flash-native-audio-preview-09-2025"
@@ -72,7 +73,7 @@ async def send_to_gemini_live(audio_data):
     
     return b"".join(audio_chunks)
 
+# This is needed if using "python app.py" as start command
 if __name__ == "__main__":
-    # Render uses PORT environment variable
     port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, debug=False)
