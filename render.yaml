@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: voice-assistant-backend
+    name: ai-bot
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python -m gunicorn app:app --bind 0.0.0.0:$PORT
+    startCommand: python3 -m gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
