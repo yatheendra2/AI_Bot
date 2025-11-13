@@ -7,11 +7,9 @@ import traceback
 
 app = Flask(__name__)
 
-# Initialize Gemini client with better error handling
+# Initialize Gemini client
 api_key = "AIzaSyBXW-tcTivYIrAGPS5rMPc-bE70PJaRpqg"
 
-# Don't crash immediately if API key is missing
-# Instead, initialize client only when needed
 if api_key:
     client = genai.Client(api_key=api_key)
     print("[STARTUP] Gemini API Key: SET ✓")
@@ -19,7 +17,6 @@ else:
     client = None
     print("[STARTUP] WARNING: GEMINI_API_KEY not set!")
 
-# Store latest audio response
 latest_audio_response = None
 
 @app.route("/", methods=["GET"])
@@ -39,38 +36,33 @@ def home():
 def process_audio():
     global latest_audio_response
     
-    # Check if API key is set
     if not client:
         return jsonify({
-            "error": "GEMINI_API_KEY not configured",
-            "message": "Please set GEMINI_API_KEY environment variable"
+            "error": "GEMINI_API_KEY not configured"
         }), 500
     
     try:
-        # Get audio data from ESP32
         audio_data = request.get_data()
-        print(f"[LOG] Received {len(audio_data)} bytes of audio from ESP32")
+        print(f"[LOG] Received {len(audio_data)} bytes")
         
         if len(audio_data) == 0:
-            return jsonify({"error": "No audio data received"}), 400
+            return jsonify({"error": "No audio data"}), 400
         
-        # Send to Gemini and get audio response
-        print("[LOG] Processing with Gemini Live API...")
+        print("[LOG] Processing with Gemini...")
         audio_response = asyncio.run(send_to_gemini_live(audio_data))
         
         if audio_response:
             latest_audio_response = audio_response
-            print(f"[LOG] Received {len(audio_response)} bytes from Gemini")
+            print(f"[LOG] Got {len(audio_response)} bytes from Gemini")
             return jsonify({
                 "status": "success",
-                "message": "Audio processed with Gemini",
                 "response_size": len(audio_response)
             }), 200
         else:
             return jsonify({"error": "No response from Gemini"}), 500
         
     except Exception as e:
-        error_msg = f"Error processing audio: {str(e)}"
+        error_msg = f"Error: {str(e)}"
         print(f"[ERROR] {error_msg}")
         return jsonify({"error": error_msg}), 500
 
@@ -80,12 +72,10 @@ def get_audio_response():
     
     try:
         if latest_audio_response and len(latest_audio_response) > 0:
-            print(f"[LOG] Sending {len(latest_audio_response)} bytes of audio to ESP32")
+            print(f"[LOG] Sending {len(latest_audio_response)} bytes to ESP32")
             
             audio_stream = io.BytesIO(latest_audio_response)
             audio_stream.seek(0)
-            
-            # Clear after sending
             latest_audio_response = None
             
             return send_file(
@@ -94,15 +84,13 @@ def get_audio_response():
                 as_attachment=False
             )
         else:
-            return jsonify({"status": "no_audio", "message": "Waiting for Gemini response"}), 404
+            return jsonify({"status": "no_audio"}), 404
             
     except Exception as e:
-        print(f"[ERROR] Error getting audio response: {e}")
+        print(f"[ERROR] {e}")
         return jsonify({"error": str(e)}), 500
 
 async def send_to_gemini_live(audio_data):
-    """Send audio to Gemini Live API and get audio response"""
-    
     try:
         model = "gemini-2.5-flash-native-audio-preview-09-2025"
         
@@ -110,19 +98,16 @@ async def send_to_gemini_live(audio_data):
             "response_modalities": ["AUDIO"],
             "speech_config": {
                 "voice_config": {
-                    "prebuilt_voice_config": {
-                        "voice_name": "Kore"
-                    }
+                    "prebuilt_voice_config": {"voice_name": "Kore"}
                 }
             }
         }
         
-        print("[GEMINI] Connecting to Gemini Live API...")
-        
+        print("[GEMINI] Connecting...")
         audio_chunks = []
         
         async with client.aio.live.connect(model=model, config=config) as session:
-            print("[GEMINI] Connected! Sending audio...")
+            print("[GEMINI] Sending audio...")
             
             await session.send_realtime_input(
                 audio={
@@ -130,31 +115,24 @@ async def send_to_gemini_live(audio_data):
                     "mime_type": "audio/pcm;rate=16000"
                 }
             )
-            print("[GEMINI] Audio sent. Waiting for response...")
             
             async for response in session.receive():
                 if response.data:
                     audio_chunks.append(response.data)
-                    print(f"[GEMINI] Received audio chunk: {len(response.data)} bytes")
                 
                 if response.server_content and response.server_content.turn_complete:
-                    print("[GEMINI] Response complete!")
                     break
         
         complete_audio = b"".join(audio_chunks)
-        print(f"[GEMINI] Total audio response: {len(complete_audio)} bytes")
+        print(f"[GEMINI] Response: {len(complete_audio)} bytes")
         
         return complete_audio
         
     except Exception as e:
-        error_msg = f"Gemini API Error: {str(e)}"
-        print(f"[ERROR] {error_msg}")
+        print(f"[ERROR] Gemini: {e}")
         raise
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
-    print(f"[STARTUP] Starting Voice Assistant Backend...")
-    print(f"[STARTUP] Gemini API Key: {'SET ✓' if api_key else 'NOT SET ✗'}")
-    print(f"[STARTUP] Running on port {port}")
-    
+    print(f"[STARTUP] Starting on port {port}...")
     app.run(host="0.0.0.0", port=port, debug=False)
