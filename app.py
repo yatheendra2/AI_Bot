@@ -7,7 +7,7 @@ import os
 app = Flask(__name__)
 
 # Initialize Gemini client
-client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+client = genai.Client(api_key="AIzaSyBXW-tcTivYIrAGPS5rMPc-bE70PJaRpqg")
 
 # Store latest audio response
 latest_audio_response = None
